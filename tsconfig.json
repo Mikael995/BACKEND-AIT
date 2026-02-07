@@ -7,22 +7,31 @@
     "paths": {
       "@/*": ["./src/*"]
     },
+    "jsx": "react-jsx", /* Fixes the 'Cannot use JSX' error */
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "useDefineForClassFields": true,
+    
+    /* Interop & Security */
     "esModuleInterop": true,
     "skipLibCheck": true,
     "allowJs": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "allowSyntheticDefaultImports": true,
+    
+    /* Strictness - Kept loose as per your previous config */
     "strict": false,
     "noImplicitAny": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "types": ["node"]
+    "noEmit": true,
+
+    /* Environment Types */
+    "types": ["node", "vite/client"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/vite-env.d.ts"],
   "exclude": ["node_modules"],
-  /* We removed "files": [] and "references": [] from here 
-     to stop the conflict with Vite's sub-configs.
-  */
+
   "ts-node": {
     "esm": true,
     "experimentalSpecifierResolution": "node",

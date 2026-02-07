@@ -1,3 +1,5 @@
+// src/models/User.ts
+
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IUser extends Document {
@@ -10,11 +12,16 @@ export interface IUser extends Document {
   level: 1 | 2 | 3 | 4 | 5 | 6;
   profileImage: string;
   bio?: string;
+  // SOCIAL CORE
   connections: mongoose.Types.ObjectId[];
+  friendRequestsSent: mongoose.Types.ObjectId[];
+  friendRequestsReceived: mongoose.Types.ObjectId[];
   interests: string[];
   isSubscribedToNews: boolean;
   notifications: Array<{
+    type: 'friend_request' | 'post_like' | 'post_comment' | 'system';
     message: string;
+    senderId?: mongoose.Types.ObjectId;
     read: boolean;
     createdAt: Date;
   }>;
@@ -39,11 +46,22 @@ const UserSchema = new Schema<IUser>({
     default: 'https://res.cloudinary.com/dfhlqlrco/image/upload/v1/defaults/placeholder.png' 
   },
   bio: { type: String, maxlength: 500 },
+  
+  // SOCIAL RELATIONSHIPS
   connections: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+  friendRequestsSent: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+  friendRequestsReceived: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+  
   interests: [{ type: String }],
   isSubscribedToNews: { type: Boolean, default: true },
   notifications: [{
+    type: { 
+      type: String, 
+      enum: ['friend_request', 'post_like', 'post_comment', 'system'], 
+      default: 'system' 
+    },
     message: { type: String, required: true },
+    senderId: { type: Schema.Types.ObjectId, ref: 'User' },
     read: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now }
   }]
@@ -51,8 +69,9 @@ const UserSchema = new Schema<IUser>({
   timestamps: true 
 });
 
-// FIXED MIDDLEWARE: Using the built-in 'any' or '(err?: Error) => void' for next
-// This avoids the missing named export issue.
+
+
+// Middleware
 UserSchema.pre('save', function(this: IUser, next: (err?: mongoose.CallbackError) => void) {
   if (this.isNew && this.level === 6) {
     console.log("Creating Owner account for AIT...");

@@ -7,6 +7,9 @@ import dotenv from 'dotenv';
 import { Resend } from 'resend';
 import { v2 as cloudinary } from 'cloudinary';
 import authRoutes from './routes/authRoutes'; 
+import userRoutes from './routes/userRoutes';
+import postRoutes from './routes/postRoutes';
+import eventRoutes from './routes/eventRoutes';
 
 dotenv.config();
 
@@ -54,6 +57,9 @@ app.get('/', (req: Request, res: Response) => {
 
 // Authentication Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes); 
+app.use('/api/posts', postRoutes); 
+app.use('/api/events', eventRoutes);
 
 // --- 5. Global Error Handling ---
 // Note: Ensure all 4 parameters are present to prevent "next is not a function" errors
