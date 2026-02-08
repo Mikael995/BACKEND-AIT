@@ -3,42 +3,24 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "Node",
+    "outDir": "dist-server", /* ADD THIS */
+    "noEmit": false,         /* CHANGE THIS to false */
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     },
-    "jsx": "react-jsx", /* Fixes the 'Cannot use JSX' error */
+    "jsx": "react-jsx",
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "useDefineForClassFields": true,
-    
-    /* Interop & Security */
     "esModuleInterop": true,
     "skipLibCheck": true,
     "allowJs": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
-    
-    /* Strictness - Kept loose as per your previous config */
     "strict": false,
-    "noImplicitAny": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noEmit": true,
-
-    /* Environment Types */
     "types": ["node", "vite/client"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/vite-env.d.ts"],
-  "exclude": ["node_modules"],
-
-  "ts-node": {
-    "esm": true,
-    "experimentalSpecifierResolution": "node",
-    "transpileOnly": true,
-    "compilerOptions": {
-      "module": "NodeNext",
-      "moduleResolution": "NodeNext"
-    }
-  }
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist", "dist-server"]
 }
