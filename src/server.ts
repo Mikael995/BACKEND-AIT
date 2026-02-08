@@ -4,6 +4,8 @@ import express, { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { Resend } from 'resend';
 import { v2 as cloudinary } from 'cloudinary';
 import authRoutes from './routes/authRoutes'; 
@@ -14,6 +16,10 @@ import eventRoutes from './routes/eventRoutes';
 dotenv.config();
 
 const app = express();
+
+// --- Path Configuration for ES Modules ---
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // --- 1. Configurations ---
 cloudinary.config({
@@ -36,33 +42,46 @@ mongoose
   .then(() => console.log('✅ Connected to AIT MongoDB'))
   .catch((err) => console.error('❌ MongoDB Connection Error:', err));
 
-// --- 4. Routes ---
+// --- 4. API Routes ---
 
 // Health Check
-app.get('/health', (req: Request, res: Response) => {
+app.get('/api/health', (req: Request, res: Response) => {
   const dbStatus = mongoose.connection.readyState === 1 ? "connected" : "disconnected";
   res.status(200).json({
     status: "active",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
-    database: dbStatus,
-    port: 5000 
+    database: dbStatus
   });
 });
 
-// Root
-app.get('/', (req: Request, res: Response) => {
-  res.send('AIT Backend API is running on Port 5000');
-});
-
-// Authentication Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes); 
 app.use('/api/posts', postRoutes); 
 app.use('/api/events', eventRoutes);
 
-// --- 5. Global Error Handling ---
-// Note: Ensure all 4 parameters are present to prevent "next is not a function" errors
+// --- 5. Static Assets & Frontend Integration ---
+
+// In Production, serve the compiled React files
+if (process.env.NODE_ENV === 'production') {
+  // Path to your frontend "dist" folder (Vite build output)
+  const distPath = path.join(__dirname, '../dist');
+  
+  app.use(express.static(distPath));
+
+  // Catch-all: Send index.html for any request that doesn't match an API route
+  // This allows React Router to handle URLs like /profile or /dashboard
+  app.get('*', (req: Request, res: Response) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+} else {
+  // Development Root Route
+  app.get('/', (req: Request, res: Response) => {
+    res.send('AIT Backend API is running. Switch to Frontend Port for UI.');
+  });
+}
+
+// --- 6. Global Error Handling ---
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('SERVER_ERROR:', err.stack || err);
   res.status(err.status || 500).json({ 
@@ -71,13 +90,12 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-// --- 6. Start Server ---
+// --- 7. Start Server ---
 const PORT = process.env.PORT || 5000; 
 app.listen(PORT, () => {
   console.log(`
-  🚀 Server is live on Port 5000!
-  📡 URL: http://localhost:5000
-  🏥 Health: http://localhost:5000/health
-  🔐 Signup Test (POST): http://localhost:5000/api/auth/signup
+  🚀 Server is live on Port ${PORT}!
+  📡 Environment: ${process.env.NODE_ENV || 'development'}
+  🏥 Health: http://localhost:${PORT}/api/health
   `);
 });
