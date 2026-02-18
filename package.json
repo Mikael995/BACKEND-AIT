@@ -6,11 +6,11 @@
   "scripts": {
     "dev": "vite",
     "server:dev": "tsx watch src/server.ts",
-    "build": "vite build && tsc", 
-    "start": "NODE_ENV=production node dist-server/server.js",
+    "build": "vite build",
+    "start": "NODE_ENV=production tsx src/server.ts",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

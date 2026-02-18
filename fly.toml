@@ -16,3 +16,10 @@ primary_region = "dfw"
 [[vm]]
   size = "shared-cpu-1x"
   memory = "512mb"
+
+  [[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  method = "get"
+  path = "/api/health"
+  timeout = "5s"
