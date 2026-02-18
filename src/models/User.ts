@@ -12,6 +12,10 @@ export interface IUser extends Document {
   level: 1 | 2 | 3 | 4 | 5 | 6;
   profileImage: string;
   bio?: string;
+  // VERIFICATION FIELDS
+  isVerified: boolean;
+  verificationToken?: string;
+  verificationTokenExpires?: Date;
   // SOCIAL CORE
   connections: mongoose.Types.ObjectId[];
   friendRequestsSent: mongoose.Types.ObjectId[];
@@ -19,7 +23,7 @@ export interface IUser extends Document {
   interests: string[];
   isSubscribedToNews: boolean;
   notifications: Array<{
-    type: 'friend_request' | 'post_like' | 'post_comment' | 'system';
+    type: 'friend_request' | 'post_like' | 'post_comment' | 'system' | 'email_verification';
     message: string;
     senderId?: mongoose.Types.ObjectId;
     read: boolean;
@@ -36,28 +40,24 @@ const UserSchema = new Schema<IUser>({
   password: { type: String, required: true },
   phone: { type: String, required: true },
   city: { type: String, required: true },
-  level: { 
-    type: Number, 
-    enum: [1, 2, 3, 4, 5, 6], 
-    default: 1 
-  },
+  level: { type: Number, enum: [1, 2, 3, 4, 5, 6], default: 1 },
+  isVerified: { type: Boolean, default: false },
+  verificationToken: String,
+  verificationTokenExpires: Date,
   profileImage: { 
     type: String, 
     default: 'https://res.cloudinary.com/dfhlqlrco/image/upload/v1/defaults/placeholder.png' 
   },
   bio: { type: String, maxlength: 500 },
-  
-  // SOCIAL RELATIONSHIPS
   connections: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   friendRequestsSent: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   friendRequestsReceived: [{ type: Schema.Types.ObjectId, ref: 'User' }],
-  
   interests: [{ type: String }],
   isSubscribedToNews: { type: Boolean, default: true },
   notifications: [{
     type: { 
       type: String, 
-      enum: ['friend_request', 'post_like', 'post_comment', 'system'], 
+      enum: ['friend_request', 'post_like', 'post_comment', 'system', 'email_verification'], 
       default: 'system' 
     },
     message: { type: String, required: true },
@@ -65,20 +65,7 @@ const UserSchema = new Schema<IUser>({
     read: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now }
   }]
-}, { 
-  timestamps: true 
-});
-
-
-
-// Middleware
-UserSchema.pre('save', function(this: IUser, next: (err?: mongoose.CallbackError) => void) {
-  if (this.isNew && this.level === 6) {
-    console.log("Creating Owner account for AIT...");
-  }
-  next();
-});
+}, { timestamps: true });
 
 const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);
-
 export default User;

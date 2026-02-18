@@ -8,28 +8,51 @@ import { v2 as cloudinary } from 'cloudinary';
 import bcrypt from 'bcryptjs';
 
 /**
+ * HELPER: Map numeric levels to human-readable badges
+ */
+const getRoleLabel = (level: number): string => {
+  if (level >= 6) return 'Owner';
+  if (level === 5) return 'Administrator';
+  if (level === 4) return 'Moderator';
+  if (level === 3) return 'Member III';
+  if (level === 2) return 'Member II';
+  return 'Member';
+};
+
+/**
  * 1. Get current user's full profile
  */
 export const getProfile = async (req: AuthRequest, res: Response) => {
   try {
     const user = await User.findById(req.user?.id)
       .select('-password')
-      .populate('connections', 'firstName lastName profileImage city');
+      .populate('connections', 'firstName lastName profileImage city level');
     
     if (!user) return res.status(404).json({ message: "User not found" });
-    res.status(200).json(user);
+
+    // Attach role label to the main user and all connections
+    const userObj = user.toObject();
+    const profile = {
+      ...userObj,
+      roleLabel: getRoleLabel(user.level),
+      connections: userObj.connections.map((c: any) => ({
+        ...c,
+        roleLabel: getRoleLabel(c.level)
+      }))
+    };
+
+    res.status(200).json(profile);
   } catch (error) {
     res.status(500).json({ message: "Error fetching profile" });
   }
 };
 
 /**
- * 2. Update user profile details (Name, Phone, City)
+ * 2. Update user profile details
  */
 export const updateProfile = async (req: AuthRequest, res: Response) => {
   try {
     const updates = { ...req.body };
-    // Safety: prevent manual overrides of sensitive fields
     delete updates.level;
     delete updates.password;
     delete updates.email;
@@ -49,18 +72,21 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
 
 /**
  * 3. Search Members by Name or City
+ * Returns friend status so the UI knows which button to show
  */
 export const searchMembers = async (req: AuthRequest, res: Response) => {
   const query = req.query.query as string;
+  const currentUserId = req.user?.id;
   
-  if (!query) {
-    return res.status(200).json([]);
-  }
+  if (!query) return res.status(200).json([]);
 
   try {
+    const currentUser = await User.findById(currentUserId).select('connections friendRequestsSent friendRequestsReceived');
+    
     const users = await User.find({
       $and: [
-        { _id: { $ne: req.user?.id } },
+        { _id: { $ne: currentUserId } },
+        { isActive: { $ne: false } }, // Only search active users
         {
           $or: [
             { firstName: { $regex: query, $options: 'i' } },
@@ -70,8 +96,23 @@ export const searchMembers = async (req: AuthRequest, res: Response) => {
         }
       ]
     }).select('firstName lastName city profileImage level');
+
+    const formattedUsers = users.map(u => {
+      const uObj = u.toObject();
+      let connectionStatus = 'none'; // Default
+
+      if (currentUser?.connections.includes(u._id)) connectionStatus = 'connected';
+      else if (currentUser?.friendRequestsSent.includes(u._id)) connectionStatus = 'pending_sent';
+      else if (currentUser?.friendRequestsReceived.includes(u._id)) connectionStatus = 'pending_received';
+
+      return {
+        ...uObj,
+        roleLabel: getRoleLabel(u.level),
+        connectionStatus
+      };
+    });
     
-    res.status(200).json(users);
+    res.status(200).json(formattedUsers);
   } catch (error) {
     res.status(500).json({ message: "Search failed" });
   }
@@ -128,11 +169,13 @@ export const acceptFriendRequest = async (req: AuthRequest, res: Response) => {
     const acceptor = await User.findById(currentUserId);
     if (!acceptor) return res.status(404).json({ message: "User not found" });
 
+    // Update current user
     await User.findByIdAndUpdate(currentUserId, { 
       $addToSet: { connections: requesterId },
       $pull: { friendRequestsReceived: requesterId }
     });
     
+    // Update requester
     await User.findByIdAndUpdate(requesterId, { 
       $addToSet: { connections: currentUserId },
       $pull: { friendRequestsSent: currentUserId },
@@ -167,7 +210,7 @@ export const markNotificationsRead = async (req: AuthRequest, res: Response) => 
 };
 
 /**
- * 7. Update Profile Picture (Cloudinary)
+ * 7. Update Profile Picture
  */
 export const updateProfilePicture = async (req: any, res: Response) => {
   try {
@@ -212,7 +255,7 @@ export const updatePassword = async (req: AuthRequest, res: Response) => {
 };
 
 /**
- * 9. Deactivate Account (Soft Delete)
+ * 9. Deactivate Account
  */
 export const deactivateAccount = async (req: AuthRequest, res: Response) => {
   try {
@@ -224,7 +267,7 @@ export const deactivateAccount = async (req: AuthRequest, res: Response) => {
 };
 
 /**
- * 10. Delete Account (Permanent)
+ * 10. Delete Account
  */
 export const deleteAccount = async (req: AuthRequest, res: Response) => {
   try {
@@ -233,4 +276,19 @@ export const deleteAccount = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     res.status(500).json({ message: "Failed to delete account" });
   }
+};
+
+
+// Add this inside src/controllers/userController.ts
+export const addSystemNotification = async (userId: string, message: string) => {
+  await User.findByIdAndUpdate(userId, {
+    $push: {
+      notifications: {
+        type: 'system',
+        message,
+        read: false,
+        createdAt: new Date()
+      }
+    }
+  });
 };

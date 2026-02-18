@@ -20,33 +20,50 @@ const router = express.Router();
 
 /**
  * MULTER CONFIGURATION
- * Files are temporarily stored in 'uploads/' before being sent to Cloudinary
+ * Storage engine for profile pictures. 
+ * Note: Use 'image' as the field name in your Frontend FormData.
  */
 const upload = multer({ dest: 'uploads/' });
 
-// --- PROFILE & ROLE ROUTES ---
-// We use getProfile for the /role route because the User/Profile model 
-// in MongoDB typically contains the role level info.
+// --- 1. PROFILE & IDENTITY ---
+// Returns the full user object including the new 'roleLabel'
 router.get('/profile', auth, getProfile);
-router.get('/role', auth, getProfile); // Added to match useUserRole hook
+
+// Explicit route for the useUserRole hook
+// This ensures compatibility with the @tanstack/react-query logic
+router.get('/role', auth, getProfile); 
+
 router.put('/profile', auth, updateProfile);
 
-// Matches useUploadAvatar hook: ensure hook uses formData.append('image', file)
+// Profile Picture - matches useUploadAvatar hook
 router.post('/profile-picture', auth, upload.single('image'), updateProfilePicture);
 
-// --- ACCOUNT MANAGEMENT ---
-router.put('/profile/password', auth, updatePassword);
-router.patch('/profile/deactivate', auth, deactivateAccount);
-router.delete('/profile', auth, deleteAccount);
 
-// --- MEMBER DISCOVERY ---
+// --- 2. SOCIAL & NETWORKING ---
+// Search members by name or city (Returns connectionStatus & roleLabel)
 router.get('/search', auth, searchMembers);
 
-// --- SOCIAL ACTIONS ---
+// Friend Request Flow
 router.post('/request/:targetUserId', auth, sendFriendRequest);
 router.post('/accept/:requesterId', auth, acceptFriendRequest);
 
-// --- NOTIFICATIONS ---
+/**
+ * NOTE: If you add a declineFriendRequest function to userController later, 
+ * you should map it to: router.post('/decline/:requesterId', auth, declineFriendRequest);
+ */
+
+
+// --- 3. NOTIFICATIONS ---
 router.patch('/notifications/read', auth, markNotificationsRead);
+
+
+// --- 4. ACCOUNT SECURITY & PRIVACY ---
+router.put('/profile/password', auth, updatePassword);
+
+// Soft Delete (Disable account)
+router.patch('/profile/deactivate', auth, deactivateAccount);
+
+// Hard Delete (Remove from DB)
+router.delete('/profile', auth, deleteAccount);
 
 export default router;
