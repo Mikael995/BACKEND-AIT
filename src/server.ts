@@ -79,7 +79,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-const PORT = process.env.PORT || 5000; 
+const PORT = process.env.PORT || 5001; 
 app.listen(PORT, () => {
   console.log(`🚀 Server live on Port ${PORT}`);
 });

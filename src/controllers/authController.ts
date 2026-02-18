@@ -1,12 +1,13 @@
 // src/controllers/authController.ts
 
+// src/controllers/authController.ts
+
 import { Request, Response } from 'express';
 import User from '../models/User';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import resend from '../lib/resend'; // Ensure this is the default export from lib/resend
-import { sendAITVerificationEmail } from '../lib/mailer'; // Ensure this is exported from lib/mailer
+import { sendAITVerificationEmail } from '../lib/mailer';
 
 /**
  * REGISTER NEW USER
@@ -36,7 +37,7 @@ export const register = async (req: Request, res: Response) => {
       city,
       level: 1, 
       isVerified: false,
-      verificationToken: hashedToken, // Save the hashed version
+      verificationToken: hashedToken,
       verificationTokenExpires: vTokenExpires,
       notifications: [{
         type: 'email_verification',
@@ -46,8 +47,18 @@ export const register = async (req: Request, res: Response) => {
       }]
     });
 
-    // Send the RAW token in the email
-    await sendAITVerificationEmail(email, firstName, rawToken);
+    // --- 👇 UPDATED: Check for Mailer Errors ---
+    const emailResult = await sendAITVerificationEmail(email, firstName, rawToken);
+
+    if (emailResult.error) {
+      console.error("Resend Error during Registration:", emailResult.error);
+      // We still created the user, but we notify them that the email failed
+      return res.status(201).json({ 
+        message: "Account created, but verification email failed to send. Please use the 'Resend' button in your dashboard.",
+        user: { id: newUser._id, email: newUser.email, level: newUser.level },
+        emailError: true 
+      });
+    }
 
     res.status(201).json({ 
       message: "Account created! Check your email to verify.",
@@ -78,8 +89,19 @@ export const resendVerification = async (req: Request, res: Response) => {
     user.verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await user.save();
 
-    // Send the email with the Raw token
-    await sendAITVerificationEmail(user.email, user.firstName, rawToken);
+    // --- 👇 UPDATED: Strict Error Handling ---
+    const emailResult = await sendAITVerificationEmail(user.email, user.firstName, rawToken);
+
+    if (emailResult.error) {
+      console.error("Resend API rejected the request:", emailResult.error);
+      
+      // Map Resend error to clear message
+      const errorMsg = emailResult.error.message || "Email service error";
+      
+      return res.status(401).json({ 
+        message: `Email failed: ${errorMsg}. Please check if the API key is valid.` 
+      });
+    }
 
     res.status(200).json({ message: "A new verification link has been sent to your email!" });
   } catch (error: any) {
@@ -98,7 +120,6 @@ export const verifyEmail = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Verification token is missing or invalid." });
     }
 
-    // --- ✅ FANYO Strategy: Hash the incoming token to find the user ---
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
     const user = await User.findOne({
