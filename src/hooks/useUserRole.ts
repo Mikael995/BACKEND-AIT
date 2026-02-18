@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 export type RoleLevel = 'level_1' | 'level_2' | 'level_3' | 'moderator' | 'administrator' | 'owner';
@@ -29,31 +28,31 @@ export function useUserRole() {
     queryFn: async () => {
       if (!user) return null;
 
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      // Fetching from your Node/Express API
+      const response = await fetch('/api/users/role', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (error) throw error;
-      return data as UserRole | null;
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error('Failed to fetch user role');
+      }
+
+      return response.json() as Promise<UserRole>;
     },
     enabled: !!user,
   });
 
+  // Default to level_1 if no data is found or while loading
   const roleLevel = query.data?.role_level ?? 'level_1';
   const roleNumber = ROLE_HIERARCHY[roleLevel];
 
   const isModerator = roleNumber >= 4;
   const isAdmin = roleNumber >= 5;
   const isOwner = roleNumber >= 6;
-
-  const canModerate = isModerator;
-  const canManageUsers = isAdmin;
-  const canManageEvents = isAdmin;
-  const canSendBroadcasts = isAdmin;
-  const canManageAdmins = isOwner;
-  const canAccessSettings = isOwner;
 
   return {
     ...query,
@@ -62,12 +61,12 @@ export function useUserRole() {
     isModerator,
     isAdmin,
     isOwner,
-    canModerate,
-    canManageUsers,
-    canManageEvents,
-    canSendBroadcasts,
-    canManageAdmins,
-    canAccessSettings,
+    canModerate: isModerator,
+    canManageUsers: isAdmin,
+    canManageEvents: isAdmin,
+    canSendBroadcasts: isAdmin,
+    canManageAdmins: isOwner,
+    canAccessSettings: isOwner,
   };
 }
 

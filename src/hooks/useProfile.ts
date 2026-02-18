@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 export interface Profile {
@@ -16,6 +15,12 @@ export interface Profile {
   updated_at: string;
 }
 
+// Helper to get the token from storage
+const getAuthHeader = () => ({
+  'Authorization': `Bearer ${localStorage.getItem('token')}`,
+  'Content-Type': 'application/json',
+});
+
 export function useProfile() {
   const { user } = useAuth();
 
@@ -24,14 +29,16 @@ export function useProfile() {
     queryFn: async () => {
       if (!user) return null;
       
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const response = await fetch('/api/users/profile', {
+        headers: getAuthHeader(),
+      });
 
-      if (error) throw error;
-      return data as Profile | null;
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error('Failed to fetch profile');
+      }
+
+      return response.json() as Promise<Profile>;
     },
     enabled: !!user,
   });
@@ -45,15 +52,14 @@ export function useUpdateProfile() {
     mutationFn: async (updates: Partial<Profile>) => {
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('user_id', user.id)
-        .select()
-        .single();
+      const response = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: getAuthHeader(),
+        body: JSON.stringify(updates),
+      });
 
-      if (error) throw error;
-      return data;
+      if (!response.ok) throw new Error('Failed to update profile');
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
@@ -69,27 +75,25 @@ export function useUploadAvatar() {
     mutationFn: async (file: File) => {
       if (!user) throw new Error('Not authenticated');
 
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${user.id}/${Date.now()}.${fileExt}`;
+      // Create FormData for file upload
+      const formData = new FormData();
+      // 'image' matches upload.single('image') in userRoutes.ts
+      formData.append('image', file);
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
+      const response = await fetch('/api/users/profile-picture', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          // Note: Browser automatically sets Content-Type for FormData with boundary
+        },
+        body: formData,
+      });
 
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('user_id', user.id);
-
-      if (updateError) throw updateError;
-
-      return publicUrl;
+      if (!response.ok) throw new Error('Avatar upload failed');
+      
+      const data = await response.json();
+      // Return the URL from your Cloudinary response in the controller
+      return data.avatar_url || data.url; 
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });

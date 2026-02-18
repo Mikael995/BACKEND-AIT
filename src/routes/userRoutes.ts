@@ -11,7 +11,6 @@ import {
   acceptFriendRequest,
   markNotificationsRead,
   updateProfilePicture,
-  // New Controllers for Account Management
   updatePassword,
   deactivateAccount,
   deleteAccount
@@ -21,19 +20,21 @@ const router = express.Router();
 
 /**
  * MULTER CONFIGURATION
+ * Files are temporarily stored in 'uploads/' before being sent to Cloudinary
  */
 const upload = multer({ dest: 'uploads/' });
 
-// --- PROFILE ROUTES ---
-// This handles fetching and updating text info (firstName, lastName, phone, city)
+// --- PROFILE & ROLE ROUTES ---
+// We use getProfile for the /role route because the User/Profile model 
+// in MongoDB typically contains the role level info.
 router.get('/profile', auth, getProfile);
+router.get('/role', auth, getProfile); // Added to match useUserRole hook
 router.put('/profile', auth, updateProfile);
 
-// This route handles the profile picture upload to Cloudinary
+// Matches useUploadAvatar hook: ensure hook uses formData.append('image', file)
 router.post('/profile-picture', auth, upload.single('image'), updateProfilePicture);
 
 // --- ACCOUNT MANAGEMENT ---
-// Security and account status
 router.put('/profile/password', auth, updatePassword);
 router.patch('/profile/deactivate', auth, deactivateAccount);
 router.delete('/profile', auth, deleteAccount);
