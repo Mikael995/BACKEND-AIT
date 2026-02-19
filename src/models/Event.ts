@@ -1,3 +1,5 @@
+// src/models/Event.ts
+
 import mongoose from 'mongoose';
 
 const eventSchema = new mongoose.Schema({
@@ -5,10 +7,15 @@ const eventSchema = new mongoose.Schema({
   description: { type: String, required: true },
   date: { type: Date, required: true },
   location: { type: String, required: true },
-  organizer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Usually an Admin
+  organizer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   attendees: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  imageUrl: { type: String },
-  category: { type: String, enum: ['Social', 'Professional', 'Cultural'], default: 'Social' }
+  // CHANGED THIS to eventImage to match your controller and UI
+  eventImage: { type: String }, 
+  category: { 
+    type: String, 
+    enum: ['Social', 'Professional', 'Cultural', 'General'], 
+    default: 'Social' 
+  }
 }, { timestamps: true });
 
 export default mongoose.model('Event', eventSchema);

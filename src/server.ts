@@ -1,14 +1,12 @@
 // src/server.ts
-
-// src/server.ts
 import dotenv from 'dotenv';
-// Load environment variables immediately before any other imports
 dotenv.config(); 
 
 import express, { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs'; // Added for directory check
 import { fileURLToPath } from 'url';
 import { v2 as cloudinary } from 'cloudinary';
 
@@ -16,11 +14,10 @@ import { v2 as cloudinary } from 'cloudinary';
 import authRoutes from './routes/authRoutes'; 
 import userRoutes from './routes/userRoutes';
 import postRoutes from './routes/postRoutes';
-import eventRoutes from './routes/postRoutes';
+import eventRoutes from './routes/eventRoutes';
 
 const app = express();
 
-// --- Path Configuration ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -31,12 +28,20 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+// Ensure 'uploads' directory exists for Multer
+const uploadDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
 // --- 2. Middleware ---
 app.use(cors());
 app.use(express.json());
+// Serve uploads folder statically (just in case)
+app.use('/uploads', express.static(uploadDir));
 
 // --- 3. Database Connection ---
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://sayd:cotedivoire@ait.scqmido.mongodb.net/AIT?retryWrites=true&w=majority';
+const MONGO_URI = process.env.MONGO_URI || 'your_fallback_uri';
 
 mongoose
   .connect(MONGO_URI)
@@ -47,8 +52,6 @@ mongoose
 app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({
     status: "active",
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
     database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
   });
 });
@@ -64,10 +67,6 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(distPath));
   app.get('*', (req: Request, res: Response) => {
     res.sendFile(path.join(distPath, 'index.html'));
-  });
-} else {
-  app.get('/', (req: Request, res: Response) => {
-    res.send('AIT Backend API is running.');
   });
 }
 
