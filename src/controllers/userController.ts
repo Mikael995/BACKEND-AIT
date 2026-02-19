@@ -1,5 +1,3 @@
-// src/controllers/userController.ts
-
 import { Response } from 'express';
 import User from '../models/User';
 import { AuthRequest } from '../middleware/auth';
@@ -20,21 +18,47 @@ const getRoleLabel = (level: number): string => {
 };
 
 /**
- * 1. Get current user's full profile
+ * 1. Get User Profile (Unified)
+ * Handles both "Self" and "Public" profiles based on userId param
  */
-export const getProfile = async (req: AuthRequest, res: Response) => {
+export const getUserProfile = async (req: AuthRequest, res: Response) => {
   try {
-    const user = await User.findById(req.user?.id)
+    const { userId } = req.params;
+    const currentUserId = req.user?.id;
+    
+    // Determine which user we are looking at
+    const targetId = userId || currentUserId;
+
+    const user = await User.findById(targetId)
       .select('-password')
       .populate('connections', 'firstName lastName profileImage city level');
     
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Attach role label to the main user and all connections
+    // Determine relationship status for the UI buttons
+    let connectionStatus = 'none';
+    if (currentUserId && String(targetId) !== String(currentUserId)) {
+      const currentUser = await User.findById(currentUserId);
+      
+      const targetObjectId = new mongoose.Types.ObjectId(targetId);
+
+      if (currentUser?.connections.includes(targetObjectId)) {
+        connectionStatus = 'connected';
+      } else if (currentUser?.friendRequestsSent.includes(targetObjectId)) {
+        connectionStatus = 'pending_sent';
+      } else if (currentUser?.friendRequestsReceived.includes(targetObjectId)) {
+        connectionStatus = 'pending_received';
+      }
+    } else {
+      connectionStatus = 'self';
+    }
+
     const userObj = user.toObject();
     const profile = {
       ...userObj,
       roleLabel: getRoleLabel(user.level),
+      connectionStatus,
+      isOwnProfile: String(targetId) === String(currentUserId),
       connections: userObj.connections.map((c: any) => ({
         ...c,
         roleLabel: getRoleLabel(c.level)
@@ -43,6 +67,7 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
 
     res.status(200).json(profile);
   } catch (error) {
+    console.error("Profile Fetch Error:", error);
     res.status(500).json({ message: "Error fetching profile" });
   }
 };
@@ -53,10 +78,8 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
 export const updateProfile = async (req: AuthRequest, res: Response) => {
   try {
     const updates = { ...req.body };
-    delete updates.level;
-    delete updates.password;
-    delete updates.email;
-    delete updates.isActive;
+    const restrictedFields = ['level', 'password', 'email', 'isActive', 'connections', 'friendRequestsSent', 'friendRequestsReceived'];
+    restrictedFields.forEach(field => delete updates[field]);
 
     const updatedUser = await User.findByIdAndUpdate(
       req.user?.id,
@@ -71,8 +94,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
 };
 
 /**
- * 3. Search Members by Name or City
- * Returns friend status so the UI knows which button to show
+ * 3. Search Members
  */
 export const searchMembers = async (req: AuthRequest, res: Response) => {
   const query = req.query.query as string;
@@ -81,12 +103,12 @@ export const searchMembers = async (req: AuthRequest, res: Response) => {
   if (!query) return res.status(200).json([]);
 
   try {
-    const currentUser = await User.findById(currentUserId).select('connections friendRequestsSent friendRequestsReceived');
+    const currentUser = await User.findById(currentUserId);
     
     const users = await User.find({
       $and: [
         { _id: { $ne: currentUserId } },
-        { isActive: { $ne: false } }, // Only search active users
+        { isActive: { $ne: false } },
         {
           $or: [
             { firstName: { $regex: query, $options: 'i' } },
@@ -95,18 +117,16 @@ export const searchMembers = async (req: AuthRequest, res: Response) => {
           ]
         }
       ]
-    }).select('firstName lastName city profileImage level');
+    }).select('firstName lastName city profileImage level').limit(10);
 
     const formattedUsers = users.map(u => {
-      const uObj = u.toObject();
-      let connectionStatus = 'none'; // Default
-
+      let connectionStatus = 'none';
       if (currentUser?.connections.includes(u._id)) connectionStatus = 'connected';
       else if (currentUser?.friendRequestsSent.includes(u._id)) connectionStatus = 'pending_sent';
       else if (currentUser?.friendRequestsReceived.includes(u._id)) connectionStatus = 'pending_received';
 
       return {
-        ...uObj,
+        ...u.toObject(),
         roleLabel: getRoleLabel(u.level),
         connectionStatus
       };
@@ -120,14 +140,13 @@ export const searchMembers = async (req: AuthRequest, res: Response) => {
 
 /**
  * 4. Send Friend Request
+ * Now includes 'relatedUser' in notifications for frontend navigation
  */
 export const sendFriendRequest = async (req: AuthRequest, res: Response) => {
   const { targetUserId } = req.params;
   const currentUserId = req.user?.id;
 
-  if (targetUserId === currentUserId) {
-    return res.status(400).json({ message: "You cannot add yourself" });
-  }
+  if (targetUserId === currentUserId) return res.status(400).json({ message: "Cannot add yourself" });
 
   try {
     const sender = await User.findById(currentUserId);
@@ -138,15 +157,15 @@ export const sendFriendRequest = async (req: AuthRequest, res: Response) => {
         friendRequestsReceived: currentUserId,
         notifications: {
           type: 'friend_request',
-          message: `${sender.firstName} sent you a friend request.`,
-          senderId: currentUserId,
+          message: `${sender.firstName} ${sender.lastName} sent you a friend request.`,
+          relatedUser: currentUserId, // Used for navigation click
           read: false,
           createdAt: new Date()
         }
       } 
     });
 
-    if (!recipient) return res.status(404).json({ message: "User not found" });
+    if (!recipient) return res.status(404).json({ message: "Recipient not found" });
 
     await User.findByIdAndUpdate(currentUserId, { 
       $addToSet: { friendRequestsSent: targetUserId } 
@@ -169,13 +188,13 @@ export const acceptFriendRequest = async (req: AuthRequest, res: Response) => {
     const acceptor = await User.findById(currentUserId);
     if (!acceptor) return res.status(404).json({ message: "User not found" });
 
-    // Update current user
+    // 1. Update current user (Acceptor)
     await User.findByIdAndUpdate(currentUserId, { 
       $addToSet: { connections: requesterId },
       $pull: { friendRequestsReceived: requesterId }
     });
     
-    // Update requester
+    // 2. Update requester
     await User.findByIdAndUpdate(requesterId, { 
       $addToSet: { connections: currentUserId },
       $pull: { friendRequestsSent: currentUserId },
@@ -183,6 +202,7 @@ export const acceptFriendRequest = async (req: AuthRequest, res: Response) => {
         notifications: {
           type: 'system',
           message: `You are now connected with ${acceptor.firstName}!`,
+          relatedUser: currentUserId, // Navigate to the person who accepted
           read: false,
           createdAt: new Date()
         }
@@ -196,7 +216,23 @@ export const acceptFriendRequest = async (req: AuthRequest, res: Response) => {
 };
 
 /**
- * 6. Mark Notifications as Read
+ * 6. Remove Connection (Unfriend)
+ */
+export const removeConnection = async (req: AuthRequest, res: Response) => {
+  const { targetUserId } = req.params;
+  const currentUserId = req.user?.id;
+
+  try {
+    await User.findByIdAndUpdate(currentUserId, { $pull: { connections: targetUserId } });
+    await User.findByIdAndUpdate(targetUserId, { $pull: { connections: currentUserId } });
+    res.status(200).json({ message: "Connection removed" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to remove connection" });
+  }
+};
+
+/**
+ * 7. Mark Notifications as Read
  */
 export const markNotificationsRead = async (req: AuthRequest, res: Response) => {
   try {
@@ -210,7 +246,7 @@ export const markNotificationsRead = async (req: AuthRequest, res: Response) => 
 };
 
 /**
- * 7. Update Profile Picture
+ * 8. Update Profile Picture
  */
 export const updateProfilePicture = async (req: any, res: Response) => {
   try {
@@ -218,7 +254,7 @@ export const updateProfilePicture = async (req: any, res: Response) => {
 
     const result = await cloudinary.uploader.upload(req.file.path, {
       folder: 'ait_profiles',
-      transformation: [{ width: 500, height: 500, crop: 'limit' }]
+      transformation: [{ width: 500, height: 500, crop: 'fill', gravity: 'face' }]
     });
 
     const updatedUser = await User.findByIdAndUpdate(
@@ -234,13 +270,13 @@ export const updateProfilePicture = async (req: any, res: Response) => {
 };
 
 /**
- * 8. Modify Password
+ * 9. Security & Account Management
  */
 export const updatePassword = async (req: AuthRequest, res: Response) => {
   try {
     const { currentPassword, newPassword } = req.body;
     const user = await User.findById(req.user?.id);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user || !user.password) return res.status(404).json({ message: "User not found" });
 
     const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) return res.status(400).json({ message: "Current password incorrect" });
@@ -254,41 +290,20 @@ export const updatePassword = async (req: AuthRequest, res: Response) => {
   }
 };
 
-/**
- * 9. Deactivate Account
- */
 export const deactivateAccount = async (req: AuthRequest, res: Response) => {
   try {
     await User.findByIdAndUpdate(req.user?.id, { isActive: false });
-    res.status(200).json({ message: "Account deactivated successfully" });
+    res.status(200).json({ message: "Account deactivated" });
   } catch (error) {
-    res.status(500).json({ message: "Failed to deactivate account" });
+    res.status(500).json({ message: "Failed to deactivate" });
   }
 };
 
-/**
- * 10. Delete Account
- */
 export const deleteAccount = async (req: AuthRequest, res: Response) => {
   try {
     await User.findByIdAndDelete(req.user?.id);
     res.status(200).json({ message: "Account permanently deleted" });
   } catch (error) {
-    res.status(500).json({ message: "Failed to delete account" });
+    res.status(500).json({ message: "Failed to delete" });
   }
-};
-
-
-// Add this inside src/controllers/userController.ts
-export const addSystemNotification = async (userId: string, message: string) => {
-  await User.findByIdAndUpdate(userId, {
-    $push: {
-      notifications: {
-        type: 'system',
-        message,
-        read: false,
-        createdAt: new Date()
-      }
-    }
-  });
 };
