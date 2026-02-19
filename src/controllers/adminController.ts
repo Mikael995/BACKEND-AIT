@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import User from '../models/User';
 import Post from '../models/Post';
 import Event from '../models/Event';
+import System from '../models/System';
 import jwt from 'jsonwebtoken';
 import { sendAITVerificationEmail, sendAITPasswordResetEmail } from '../lib/mailer'; // FIX: Names matched
 import BannedIP from '../models/BannedIP';
@@ -145,5 +146,48 @@ export const banUserIP = async (req: Request, res: Response) => {
     res.status(200).json({ message: `IP ${user.lastKnownIP} has been blacklisted.` });
   } catch (error) {
     res.status(500).json({ message: "IP Ban failed" });
+  }
+};
+
+// @desc    Get system status
+// @route   GET /api/admin/system-status
+export const getSystemStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Find the first document in the system collection
+    let status = await System.findOne();
+    
+    // If it doesn't exist, create the default "Operational" state
+    if (!status) {
+      status = await System.create({ maintenance: false });
+    }
+    
+    res.status(200).json(status);
+  } catch (error) {
+    console.error("Status Fetch Error:", error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// @desc    Update system status (Maintenance Toggle)
+// @route   PATCH /api/admin/system-status
+export const updateSystemStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { maintenance } = req.body;
+    
+    // Use findOneAndUpdate with upsert: true. 
+    // This looks for ANY document ({}) and updates it, or creates it if it's missing.
+    const status = await System.findOneAndUpdate(
+      {}, 
+      { 
+        maintenance, 
+        lastUpdatedBy: (req as any).user?._id // Cast req to any to access the user ID
+      },
+      { new: true, upsert: true }
+    );
+
+    res.status(200).json(status);
+  } catch (error) {
+    console.error("Protocol Update Error:", error);
+    res.status(500).json({ message: 'Protocol Update Failed' });
   }
 };

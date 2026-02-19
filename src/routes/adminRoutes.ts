@@ -7,11 +7,21 @@ import {
   deleteUser, 
   ghostLogin, 
   resendUserVerification,
-  triggerPasswordReset 
+  triggerPasswordReset,
+  getSystemStatus,      // New
+  updateSystemStatus    // New
 } from '../controllers/adminController';
 
 const router = express.Router();
 
+// --- System Management ---
+// Public: App needs to check this before/during login
+router.get('/system-status', getSystemStatus); 
+
+// Restricted: Only Level 6 (Owner) can flip the switch
+router.patch('/system-status', auth, checkLevel(6), updateSystemStatus);
+
+// --- Existing Admin Actions ---
 router.get('/stats', auth, checkLevel(4), getAdminStats);
 router.post('/resend-verification', auth, checkLevel(5), resendUserVerification);
 router.post('/trigger-reset', auth, checkLevel(5), triggerPasswordReset);
@@ -19,4 +29,4 @@ router.patch('/update-role', auth, checkLevel(6), updateUserLevel);
 router.delete('/user/:userId', auth, checkLevel(6), deleteUser);
 router.post('/ghost-login', auth, checkLevel(6), ghostLogin);
 
-export default router;
+export default router
