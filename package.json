@@ -4,10 +4,13 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+   "dev": "vite",
+    "server:dev": "tsx watch src/server.ts",
+    "build": "vite build",
     "start": "NODE_ENV=production tsx src/server.ts",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "preview": "vite preview"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
