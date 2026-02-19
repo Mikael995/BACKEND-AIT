@@ -1,16 +1,15 @@
 {
-  "name": "ivory-connect-backend",
+  "name": "ivory-connect-hub",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-   "dev": "vite",
+    "dev": "tsx watch src/server.ts",
     "server:dev": "tsx watch src/server.ts",
-    "build": "vite build",
-    "start": "NODE_ENV=production tsx src/server.ts",
+    "build": "tsc", 
+    "start": "NODE_ENV=production node dist-server/server.js",
     "lint": "eslint .",
-    "test": "vitest run",
-    "preview": "vite preview"
+    "test": "vitest run"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
