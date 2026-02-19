@@ -66,13 +66,13 @@ app.use('/api/events', eventRoutes);
 app.use('/api/admin', adminRoutes);
 
 // --- 5. Frontend Integration ---
-if (process.env.NODE_ENV === 'production') {
-  const distPath = path.join(__dirname, '../dist');
-  app.use(express.static(distPath));
-  app.get('*', (req: Request, res: Response) => {
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
-}
+// if (process.env.NODE_ENV === 'production') {
+//   const distPath = path.join(__dirname, '../dist');
+//   app.use(express.static(distPath));
+//   app.get('*', (req: Request, res: Response) => {
+//     res.sendFile(path.join(distPath, 'index.html'));
+//   });
+// }
 
 // --- 6. Error Handling ---
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
