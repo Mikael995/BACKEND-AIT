@@ -15,6 +15,8 @@ import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
 import postRoutes from './routes/postRoutes';
 import eventRoutes from './routes/eventRoutes';
+import adminRoutes from './routes/adminRoutes';
+import { checkIP } from './middleware/checkIP';
 
 const app = express();
 
@@ -37,6 +39,7 @@ if (!fs.existsSync(uploadDir)) {
 // --- 2. Middleware ---
 app.use(cors());
 app.use(express.json());
+app.use(checkIP);
 // Serve uploads folder statically (just in case)
 app.use('/uploads', express.static(uploadDir));
 
@@ -60,6 +63,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes); 
 app.use('/api/posts', postRoutes); 
 app.use('/api/events', eventRoutes);
+app.use('/api/admin', adminRoutes);
 
 // --- 5. Frontend Integration ---
 if (process.env.NODE_ENV === 'production') {

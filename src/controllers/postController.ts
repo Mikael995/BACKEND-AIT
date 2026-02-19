@@ -101,28 +101,59 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
 // 5. Add Comment
 export const addComment = async (req: AuthRequest, res: Response) => {
   try {
-    const { text } = req.body;
-    if (!text) return res.status(400).json({ message: "Comment text is required" });
+    // CHANGE: Destructure 'content' instead of 'text' to match frontend payload
+    const { content } = req.body; 
+    if (!content) return res.status(400).json({ message: "Comment content is required" });
 
     const post = await Post.findById(req.params.postId);
     if (!post) return res.status(404).json({ message: "Post not found" });
 
     const comment = {
       user: req.user?.id,
-      text,
+      text: content, // Map the frontend 'content' to your schema's 'text' field
       createdAt: new Date()
     };
 
     post.comments.push(comment as any);
     await post.save();
     
-    // Return post with fully populated comments so the UI updates with the user's name/avatar
     const updatedPost = await Post.findById(post._id)
       .populate('author', 'firstName lastName profileImage city')
       .populate('comments.user', 'firstName lastName profileImage');
 
     res.status(200).json(updatedPost);
   } catch (error) {
+    console.error("Comment Error:", error);
     res.status(500).json({ message: "Comment failed" });
+  }
+};
+
+
+// Toggle Like on a Comment
+export const likeComment = async (req, res) => {
+  try {
+    const { postId, commentId } = req.params;
+    const userId = req.user.id; // Assuming you have auth middleware
+
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+
+    // Find the comment in the post's comments array
+    const comment = post.comments.id(commentId);
+    if (!comment) return res.status(404).json({ message: "Comment not found" });
+
+    // Check if already liked
+    const likeIndex = comment.likes.indexOf(userId);
+
+    if (likeIndex === -1) {
+      comment.likes.push(userId); // Like
+    } else {
+      comment.likes.splice(likeIndex, 1); // Unlike
+    }
+
+    await post.save();
+    res.status(200).json(post);
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };

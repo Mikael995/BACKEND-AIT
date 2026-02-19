@@ -2,12 +2,14 @@ import express from 'express';
 import multer from 'multer';
 import auth from '../middleware/auth';
 import { 
-  getUserProfile, // Renamed from getProfile to match the new unified logic
+  getUserProfile, 
   updateProfile, 
   searchMembers, 
   sendFriendRequest, 
   acceptFriendRequest,
-  removeConnection, // Added for "Unfriend" functionality
+  getPendingRequests, // Added this to match controller
+  declineFriendRequest,
+  removeConnection,
   markNotificationsRead,
   updateProfilePicture,
   updatePassword,
@@ -24,48 +26,41 @@ const upload = multer({ dest: 'uploads/' });
 
 // --- 1. PROFILE & IDENTITY ---
 
-// Unified Profile Route: 
-// GET /user/profile -> Returns logged-in user profile
-// GET /user/profile/:userId -> Returns a specific user's public profile
+// Profile Fetching (Unified: Self or Public)
 router.get('/profile/:userId?', auth, getUserProfile);
 
-// Explicit route for hooks that specifically check the logged-in role
+// Explicit route for role checking
 router.get('/role', auth, getUserProfile); 
 
+// Profile Updates
 router.put('/profile', auth, updateProfile);
-
-// Profile Picture
 router.post('/profile-picture', auth, upload.single('image'), updateProfilePicture);
 
 
 // --- 2. SOCIAL & NETWORKING ---
 
-// Search members by name or city
+// Search (Placed above dynamic ID routes to avoid collisions)
 router.get('/search', auth, searchMembers);
 
 // Friend Request Flow
+router.get('/requests/pending', auth, getPendingRequests); // CRITICAL: The endpoint for your dashboard list
 router.post('/request/:targetUserId', auth, sendFriendRequest);
 router.post('/accept/:requesterId', auth, acceptFriendRequest);
+router.post('/decline/:requesterId', auth, declineFriendRequest);
 
-// Unfriend / Remove Connection
-// This allows users to manage their network directly from a profile page
+// Unfriend
 router.delete('/connection/:targetUserId', auth, removeConnection);
 
 
 // --- 3. NOTIFICATIONS ---
 
-// Mark all as read when opening the notification bell
 router.patch('/notifications/read', auth, markNotificationsRead);
 
 
-// --- 4. ACCOUNT SECURITY & PRIVACY ---
+// --- 4. ACCOUNT SECURITY ---
 
 router.put('/profile/password', auth, updatePassword);
-
-// Soft Delete (Disable account)
 router.patch('/profile/deactivate', auth, deactivateAccount);
-
-// Hard Delete (Remove from DB)
 router.delete('/profile', auth, deleteAccount);
 
 export default router;

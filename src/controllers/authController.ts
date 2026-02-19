@@ -21,6 +21,11 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "An account with this email already exists." });
     }
 
+    // --- 👇 ADDED: Generate Username here for immediate use ---
+    const baseUsername = `${firstName}.${lastName}`.toLowerCase().replace(/\s+/g, '');
+    const randomSuffix = Math.floor(100 + Math.random() * 900);
+    const username = `${baseUsername}${randomSuffix}`;
+
     const hashedPassword = await bcrypt.hash(password, 12);
     
     // --- ✅ FANYO Strategy: Generate Raw & Hashed Token ---
@@ -29,6 +34,7 @@ export const register = async (req: Request, res: Response) => {
     const vTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); 
 
     const newUser = await User.create({
+      username,
       firstName,
       lastName,
       email,
@@ -60,9 +66,14 @@ export const register = async (req: Request, res: Response) => {
       });
     }
 
-    res.status(201).json({ 
+   res.status(201).json({ 
       message: "Account created! Check your email to verify.",
-      user: { id: newUser._id, email: newUser.email, level: newUser.level } 
+      user: { 
+        id: newUser._id, 
+        email: newUser.email, 
+        level: newUser.level,
+        username: newUser.username // Added this
+      } 
     });
   } catch (error: any) {
     console.error("Signup Error 👉", error);
@@ -170,9 +181,14 @@ export const login = async (req: Request, res: Response) => {
       { expiresIn: "7d" }
     );
 
-    res.status(200).json({ 
+    // SAVE THE IP ADDRESS
+    user.lastKnownIP = req.headers['x-forwarded-for']?.toString() || req.socket.remoteAddress;
+    await user.save();
+
+   res.status(200).json({ 
       result: {
         id: user._id,
+        username: user.username, // Added this
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
@@ -186,3 +202,38 @@ export const login = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Login failed" });
   }
 };
+
+
+/**
+ * RESET PASSWORD
+ */
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: new Date() } // Check if not expired
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired reset token." });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+
+    // Clear reset fields
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    
+    await user.save();
+
+    res.status(200).json({ message: "Password updated successfully. You can now log in." });
+  } catch (error) {
+    res.status(500).json({ message: "Server error during password reset." });
+  }
+};
+
+
