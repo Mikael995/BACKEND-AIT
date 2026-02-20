@@ -7,7 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "server:dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node --experimental-specifier-resolution=node dist-server/server.js",
+    "start": "tsx src/server.ts",
     "lint": "eslint .",
     "test": "vitest run"
   },
