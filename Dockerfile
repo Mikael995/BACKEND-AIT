@@ -1,12 +1,11 @@
 FROM node:20-slim
 WORKDIR /app
 
-# 1. Install dependencies
+# 1. Install EVERYTHING (including devDeps like tsx)
 COPY package*.json ./
-# We need devDeps because tsx is a devDependency
 RUN npm install --legacy-peer-deps
 
-# 2. Copy the rest of your code (including the src folder)
+# 2. Copy the source code
 COPY . .
 
 # 3. Create uploads directory
@@ -17,6 +16,6 @@ ENV NODE_ENV=production
 ENV PORT=5001
 EXPOSE 5001
 
-# 5. Start the server using tsx
-# This matches your local 'npm run dev' behavior which we know works
+# 5. The Start Command
+# Using 'npx' ensures it finds tsx in the node_modules
 CMD ["npx", "tsx", "src/server.ts"]
