@@ -6,7 +6,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import path from 'path';
-import fs from 'fs'; // Added for directory check
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { v2 as cloudinary } from 'cloudinary';
 
@@ -30,21 +30,29 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Ensure 'uploads' directory exists for Multer
 const uploadDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
 }
 
-// --- 2. Middleware ---
-app.use(cors());
+// --- 2. Middleware (FIXED CORS) ---
+app.use(cors({
+  origin: [
+    "https://www.ivoriansintexas.com", 
+    "https://ivoriansintexas.com", 
+    "http://localhost:5173"
+  ],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
 app.use(express.json());
 app.use(checkIP);
-// Serve uploads folder statically (just in case)
 app.use('/uploads', express.static(uploadDir));
 
 // --- 3. Database Connection ---
-const MONGO_URI = process.env.MONGO_URI || 'your_fallback_uri';
+const MONGO_URI = process.env.MONGO_URI || '';
 
 mongoose
   .connect(MONGO_URI)
@@ -65,14 +73,8 @@ app.use('/api/posts', postRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/admin', adminRoutes);
 
-// --- 5. Frontend Integration ---
-// if (process.env.NODE_ENV === 'production') {
-//   const distPath = path.join(__dirname, '../dist');
-//   app.use(express.static(distPath));
-//   app.get('*', (req: Request, res: Response) => {
-//     res.sendFile(path.join(distPath, 'index.html'));
-//   });
-// }
+// --- 5. Frontend Integration (FULLY REMOVED TO PREVENT 502) ---
+// We no longer serve static files here because the frontend is on Vercel.
 
 // --- 6. Error Handling ---
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
